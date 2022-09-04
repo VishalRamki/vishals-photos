@@ -16,8 +16,8 @@ import (
 type mainMenu struct {
 	*fyne.MainMenu
 
-	sysMenu *fyne.Menu
-	quit    *fyne.MenuItem
+	// sysMenu *fyne.Menu
+	quit *fyne.MenuItem
 }
 
 type systemData struct {
@@ -27,6 +27,8 @@ type systemData struct {
 	windowWidth  float64
 	windowHeight float64
 }
+
+var floating_index = 0
 
 func main() {
 	myApp := app.New()
@@ -42,6 +44,9 @@ func main() {
 	mm.quit = fyne.NewMenuItem("Quit", myWindow.Close)
 	var fileOpenDialog = fyne.NewMenuItem("Open File", func() {
 		var file_dialog = dialog.NewFileOpen(func(uc fyne.URIReadCloser, err error) {
+			if uc == nil || err != nil {
+				return
+			}
 			//image := canvas.NewImageFromResource(theme.FyneLogo())
 			image := canvas.NewImageFromURI(uc.URI())
 			// image := canvas.NewImageFromImage(src)
@@ -54,10 +59,14 @@ func main() {
 
 		file_dialog.SetFilter(
 			storage.NewExtensionFileFilter([]string{".jpg", ".png"}))
+		file_dialog.Resize(fyne.NewSize(float32(sysData.windowWidth), float32(sysData.windowWidth)))
 		file_dialog.Show()
 	})
 	var folderOpenDialog = fyne.NewMenuItem("Open Folder", func() {
 		var folder_dialog = dialog.NewFolderOpen(func(lu fyne.ListableURI, err error) {
+			if lu == nil || err != nil {
+				return
+			}
 			//sysData.folderURIs, _ = lu.List()
 			dat, _ := lu.List()
 			var dtx []fyne.URI
@@ -69,18 +78,22 @@ func main() {
 			sysData.folderURIs = dtx
 			folderImageLoad(myWindow, sysData, 0)
 		}, myWindow)
+		folder_dialog.Resize(fyne.NewSize(float32(sysData.windowWidth), float32(sysData.windowWidth)))
 		folder_dialog.Show()
 	})
 	var fileMenu = fyne.NewMenu("File", fileOpenDialog, folderOpenDialog, fyne.NewMenuItemSeparator(), mm.quit)
 
 	// about button
-	content := widget.NewCard("Vishal's Photos", "created by github@VishalRamki", widget.NewRichTextFromMarkdown(`Vishal's Photos is a simple way to view all your photos in a folder.
-	It is built on Fyne.
+	content := widget.NewCard("Vishal's Photos", "created by github@VishalRamki", widget.NewRichTextFromMarkdown(`
+	Vishal's Photos is a simple way to view all your photos in a folder. It is built on Fyne.
+	
 	The source code is available @ https://github.com/VishalRamki/vishals-photos
+	
 	https://vishalramkissoon.com`))
 	aboutDialog := dialog.NewCustom("", "Close", content, myWindow)
 	aboutdialogMenu := fyne.NewMenuItem("About", func() {
 		aboutDialog.Show()
+		aboutDialog.Resize(fyne.NewSize(float32(sysData.windowWidth)/2.0, float32(sysData.windowWidth)/2.0))
 	})
 	var aboutMenu = fyne.NewMenu("About", aboutdialogMenu)
 
@@ -90,11 +103,10 @@ func main() {
 		myWindow.SetFullScreen(sysData.fullscreen)
 
 		if len(sysData.folderURIs) > 0 {
-			folderImageLoad(myWindow, sysData, sysData.uriIndex)
+			folderImageLoad(myWindow, sysData, floating_index)
 		}
 		// reset to 720p
 		if !sysData.fullscreen {
-
 			myWindow.Resize(fyne.NewSize(float32(sysData.windowWidth), float32(sysData.windowHeight)))
 		}
 	})
@@ -115,6 +127,7 @@ func main() {
 
 func folderImageLoad(mainWindow fyne.Window, d systemData, index int) {
 	d.uriIndex = index
+	floating_index = index
 	if index < 0 || index >= len(d.folderURIs) {
 		return
 	}
@@ -137,6 +150,14 @@ func folderImageLoad(mainWindow fyne.Window, d systemData, index int) {
 	})
 	nextImage := widget.NewButton("Next >>", func() {
 		folderImageLoad(mainWindow, d, index+1)
+	})
+	// key
+	mainWindow.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
+		if k.Name == fyne.KeyLeft {
+			folderImageLoad(mainWindow, d, index-1)
+		} else if k.Name == fyne.KeyRight {
+			folderImageLoad(mainWindow, d, index+1)
+		}
 	})
 	fileName := canvas.NewText(d.folderURIs[index].Name(), color.Black)
 	content := container.New(layout.NewHBoxLayout(), prevImage, layout.NewSpacer(), fileName, layout.NewSpacer(), nextImage)
